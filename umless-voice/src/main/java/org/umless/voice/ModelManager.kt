@@ -14,6 +14,7 @@ import kotlinx.serialization.json.putJsonObject
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.umless.core.CoreHooks
+import org.umless.core.DownloadSources
 import org.umless.core.I18n
 import org.umless.core.Umless
 import org.umless.core.UmlessLog
@@ -27,7 +28,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * 本地识别模型：下载（镜像 + 官方地址，sha256 校验，tar.bz2 解压）、是否已下载、路径。
+ * 本地识别模型：下载（下载源见 DownloadSources：直连 GitHub / 镜像，sha256 校验，tar.bz2 解压）、是否已下载、路径。
  * 模型规格与桌面端 models.py 一致；手机端只提供 sensevoice。
  *
  * 下载到 models/.<archive>.part，校验后解压到临时目录，最后整体改名为正式目录（原子操作）：
@@ -39,8 +40,7 @@ object ModelManager {
         val archive: String get() = "$dirname.tar.bz2"
     }
 
-    private const val RELEASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
-    private val MIRRORS = listOf("https://gh-proxy.com/$RELEASE", RELEASE)
+    private const val RELEASE = DownloadSources.MODEL_RELEASE
 
     val MODELS: Map<String, Spec> = mapOf(
         "sensevoice" to Spec(
@@ -71,6 +71,9 @@ object ModelManager {
     }
 
     fun sizeMb(name: String): Int = spec(name).sizeMb
+
+    /** 官方下载地址（GitHub）；实际按 DownloadSources 的配置决定直连还是走镜像 */
+    fun url(name: String): String = "$RELEASE/${spec(name).archive}"
 
     /** 设置页显示的模型信息（CoreHooks.modelsInfo）。在主进程 Umless.init 之后调用一次 */
     fun registerHooks() {
@@ -113,8 +116,7 @@ object ModelManager {
         }
 
         val part = File(modelsDir, ".${spec.archive}.part")
-        for (base in MIRRORS) {
-            val url = "$base/${spec.archive}"
+        for ((source, url) in DownloadSources.candidates(url(name))) {
             progress(0f, tr("models.downloading_from", "url" to url, "size" to spec.sizeMb))
             val sha = try {
                 fetch(url, part, progress)
@@ -131,6 +133,7 @@ object ModelManager {
                 part.delete()
                 continue
             }
+            DownloadSources.succeeded(source) // 文件完整：auto 模式下次先试这个源
             progress(0.96f, tr("models.extracting"))
             val tmp = File(modelsDir, ".extract-${spec.dirname}")
             try {

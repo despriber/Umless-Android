@@ -122,6 +122,11 @@ object UmlessConfig {
             put("skipped_version", "") // 用户点过「跳过此版本」的版本号，自动检查不再提示它
             put("manifest_url", "")    // 覆盖清单地址（测试或自建镜像），空 = GitHub Releases
         })
+        // GitHub 下载源（识别模型、更新清单与安装包）：auto / github / mirror，见 DownloadSources
+        put("network", buildJsonObject {
+            put("download_source", DownloadSources.AUTO)
+            put("mirror_url", DownloadSources.DEFAULT_MIRROR) // 镜像前缀，下载地址 = mirror_url + 原地址
+        })
     }
 
     // 任意键的字典：用户的值整体使用（extra_body）或与默认值合并（scenes.intensity、audio.sounds）
@@ -238,6 +243,12 @@ object UmlessConfig {
     val updateSkippedVersion: String get() = str("update.skipped_version").trim()
     val updateManifestUrl: String get() = str("update.manifest_url").trim()
 
+    // ---- 下载源 ----
+    val downloadSource: String get() = str("network.download_source").takeIf { it in DownloadSources.MODES } ?: DownloadSources.AUTO
+
+    /** 镜像前缀（以 "/" 结尾）；手改配置文件写坏时用默认镜像 */
+    val mirrorUrl: String get() = DownloadSources.normalizeMirror(str("network.mirror_url")) ?: DownloadSources.DEFAULT_MIRROR
+
     /** 包名 → 场景（chat / document / code / email / default）；scenes.enabled=false 时为 default */
     fun sceneOf(packageName: String?): String {
         if (!bool("scenes.enabled") || packageName.isNullOrEmpty()) return "default"
@@ -347,7 +358,7 @@ object UmlessConfig {
 
     /** 校验补丁，返回规范化后的补丁（音量转为整数、提示音去空白） */
     fun validate(patch: JsonObject): JsonObject {
-        for (section in listOf("app", "audio", "polish", "scenes", "asr", "privacy", "voice", "llm", "coach", "glossary", "update")) {
+        for (section in listOf("app", "audio", "polish", "scenes", "asr", "privacy", "voice", "llm", "coach", "glossary", "update", "network")) {
             if (section in patch && patch[section] !is JsonObject) bad("cfg.bad_format")
         }
         fun sec(name: String) = patch[name] as? JsonObject ?: JsonObject(emptyMap())
@@ -429,6 +440,21 @@ object UmlessConfig {
             if (url.isNotEmpty() && !url.startsWith("https://") && !url.startsWith("http://")) bad("cfg.bad_format")
         }
 
-        return if ("audio" in patch) JsonObject(LinkedHashMap(patch).apply { put("audio", audio) }) else patch
+        // 下载源：download_source 为 auto / github / mirror；mirror_url 为 http(s) 地址，末尾补 "/"
+        var network = sec("network")
+        network["download_source"]?.let { v ->
+            if (!(v is JsonPrimitive && v.isString && v.content in DownloadSources.MODES)) bad("cfg.bad_download_source", "value" to Py.str(v))
+        }
+        network["mirror_url"]?.let { v ->
+            val url = (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(DownloadSources::normalizeMirror)
+                ?: bad("cfg.bad_mirror_url", "value" to Py.str(v))
+            network = JsonObject(LinkedHashMap(network).apply { put("mirror_url", JsonPrimitive(url)) })
+        }
+
+        if ("audio" !in patch && "network" !in patch) return patch
+        return JsonObject(LinkedHashMap(patch).apply {
+            if ("audio" in patch) put("audio", audio)
+            if ("network" in patch) put("network", network)
+        })
     }
 }

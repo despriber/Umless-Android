@@ -35,9 +35,9 @@ Umless 在 fcitx5-android 之上增加语音输入与表达教练。上游代码
 
 规则见主仓库 `spec/update.md`，界面接口见 `docs/ui-api.md`「更新」。
 
-- 清单 `https://github.com/despriber/Umless-Android/releases/latest/download/update.json`（先 `https://gh-proxy.com/` 再直连；配置 `update.manifest_url` 可覆盖）。仓库名只在 `Updater.REPO`。
+- 清单 `https://github.com/despriber/Umless-Android/releases/latest/download/update.json`（下载源见下方「下载源」；配置 `update.manifest_url` 可覆盖，非 GitHub 地址总是直连）。仓库名只在 `Updater.REPO`。
 - 接口（`Updater.register`，在 `UiInit` 里 `PlatformApi` 之后注册）：
-  - `check_update(force)` → `{current, latest, available, skipped, notes, published_at, size, checked_at, error, can_install: true, install_hint: null, downloaded}`；网络错误不抛出，放在 `error`。`force` 为假时 24 小时内用缓存，过期且开启 `update.auto_check` 才联网（关闭时只返回缓存）。`latest` 是清单里的版本（即使没有适合本机的安装包），`available` 只在有匹配本机 ABI 的 apk 且基础版本号更大时为真；`skipped` 与 `available` 相互独立。
+  - `check_update(force)` → `{current, latest, available, skipped, notes, published_at, size, checked_at, error, not_published, can_install: true, install_hint: null, downloaded}`；网络错误不抛出，放在 `error`；所有尝试的源都对清单返回 404（还没发布正式版）时 `not_published` 为真、`error` 为 null。`force` 为假时 24 小时内用缓存，过期且开启 `update.auto_check` 才联网（关闭时只返回缓存）。`latest` 是清单里的版本（即使没有适合本机的安装包），`available` 只在有匹配本机 ABI 的 apk 且基础版本号更大时为真；`skipped` 与 `available` 相互独立。
   - `download_update()` → `{job_id}`（Jobs key `update:download`），结果 `{downloaded: true}`。
   - `install_update()` → `{status: "installing" | "needs_permission"}`；没有「安装未知应用」权限时打开系统设置页，用户返回后需再调一次。
   - `skip_update(version)` → `null`（写 `update.skipped_version`；空值清除）。
@@ -47,6 +47,14 @@ Umless 在 fcitx5-android 之上增加语音输入与表达教练。上游代码
 - 安装：PackageInstaller 会话（`MODE_FULL_INSTALL`、`setAppPackageName`、Android 12+ 请求 `USER_ACTION_NOT_REQUIRED`），结果广播到 `UpdateInstallReceiver`（显式、`FLAG_MUTABLE`）：需要确认时打开系统确认界面，失败时 Toast + 日志。
 - 状态缓存在数据库 kv `update`（上次检查时间、清单原文、错误、已下载的安装包）；配置 `update.auto_check`（默认开）、`update.skipped_version`、`update.manifest_url`（后两项设置界面不显示）。
 - 打开 / 回到主 App（`UmlessActivity.onStart`）时自动检查是否到期；不做后台定时任务。主 App 初始化时删除已安装（versionCode ≤ 已安装）的安装包与无法识别的文件。
+
+## 下载源
+
+识别模型（`ModelManager`）与更新清单 / 安装包（`Updater`）共用 `org.umless.core.DownloadSources`，只对 `https://github.com/` 的地址生效：
+
+- 配置 `network.download_source`：`auto`（默认）/ `github`（只直连）/ `mirror`（只走镜像）；`network.mirror_url` 镜像前缀，默认 `https://gh-proxy.com/`，必须是 http(s) 地址，保存时补末尾 `/`，下载地址 = 前缀 + 原地址。
+- `auto`：先试上次成功的源（数据库 kv `download_source_last`，从未成功过时先镜像），失败再换另一个；任一源下载成功（模型 sha256 通过、清单解析成功、安装包校验通过）后记住它。
+- `test_download_sources()`（`CoreApi` 注册）→ `{github: {ok, ms, error}, mirror: {...}, preferred}`：同时请求两个源的 SenseVoice 模型压缩包前 1 KiB（`Range: bytes=0-1023`，200 / 206 且读到数据为可用，跟随跳转，总共约 8 秒），网络错误不抛出；`preferred` 为可用源里较快的一个（同时记为 `auto` 先试的源），都不可用时为当前记住的源。
 
 ## 版本号与发布文件
 

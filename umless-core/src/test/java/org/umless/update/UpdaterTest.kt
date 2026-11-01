@@ -222,7 +222,7 @@ class UpdaterTest {
         assertEquals(listOf(proxyManifest, manifestUrl), http.requests.map { it.first })
         assertEquals(
             setOf("current", "latest", "available", "skipped", "notes", "published_at", "size", "checked_at", "error",
-                "can_install", "install_hint", "downloaded"),
+                "not_published", "can_install", "install_hint", "downloaded"),
             r.keys,
         )
         assertEquals("0.1.2", r.str("current"))
@@ -234,6 +234,7 @@ class UpdaterTest {
         assertEquals(payload.size.toString(), r.str("size"))
         assertEquals("2027-01-15T08:00:00Z", r.str("checked_at"))
         assertNull(r.str("error"))
+        assertFalse(r.bool("not_published"))
         assertTrue(r.bool("can_install"))
         assertEquals(JsonNull, r["install_hint"])
         assertFalse(r.bool("downloaded"))
@@ -246,6 +247,7 @@ class UpdaterTest {
         assertFalse(r.bool("available"))
         assertNull(r.str("latest"))
         assertTrue(r.str("error")!!.startsWith("检查更新失败"))
+        assertFalse(r.bool("not_published"))
         assertNotNull(r.str("checked_at"))
 
         // 之前成功过：失败时保留上次的清单，同时报告错误
@@ -257,6 +259,104 @@ class UpdaterTest {
         val again = check(force = true)
         assertTrue(again.bool("available"))
         assertNotNull(again.str("error"))
+    }
+
+    @Test
+    fun notPublishedWhenEverySourceIs404() {
+        // 还没有发布过正式版：两个源都 404，不算错误
+        val r = check(force = true)
+        assertEquals(listOf(proxyManifest, manifestUrl), http.requests.map { it.first })
+        assertTrue(r.bool("not_published"))
+        assertNull(r.str("error"))
+        assertNull(r.str("latest"))
+        assertFalse(r.bool("available"))
+        assertNotNull(r.str("checked_at"))
+        assertTrue(check(force = false).bool("not_published")) // 缓存里也记着
+
+        // 一个 404、一个网络错误：是错误，不是「未发布」
+        http.failing.add(manifestUrl)
+        val mixed = check(force = true)
+        assertFalse(mixed.bool("not_published"))
+        assertNotNull(mixed.str("error"))
+
+        // 只用一个源时，它 404 就算未发布
+        http.failing.clear()
+        UmlessConfig.savePatch(buildJsonObject { putJsonObject("network") { put("download_source", "github") } })
+        assertTrue(check(force = true).bool("not_published"))
+
+        // 发布之后照常
+        http.texts[manifestUrl] = manifest()
+        val ok = check(force = true)
+        assertFalse(ok.bool("not_published"))
+        assertTrue(ok.bool("available"))
+    }
+
+    @Test
+    fun downloadSourceModes() {
+        fun mode(m: String) = UmlessConfig.savePatch(buildJsonObject { putJsonObject("network") { put("download_source", m) } })
+        http.texts[proxyManifest] = manifest()
+        http.texts[manifestUrl] = manifest()
+        http.files[proxyApk] = payload
+        http.files[apkUrl] = payload
+
+        // github：清单与安装包都只直连
+        mode("github")
+        download()
+        assertEquals(listOf(manifestUrl, apkUrl), http.requests.map { it.first })
+        apkFile.delete()
+
+        // mirror：只走镜像，镜像失败也不直连
+        mode("mirror")
+        http.requests.clear()
+        http.failing.add(proxyApk)
+        try {
+            download()
+            fail("mirror only")
+        } catch (e: IOException) {
+            assertTrue(e.message!!.startsWith("下载更新失败"))
+        }
+        assertEquals(listOf(proxyManifest, proxyApk), http.requests.map { it.first })
+
+        // 自定义镜像前缀
+        UmlessConfig.savePatch(buildJsonObject { putJsonObject("network") { put("mirror_url", "https://m.example/gh") } })
+        http.requests.clear()
+        check(force = true)
+        assertEquals(listOf("https://m.example/gh/$manifestUrl"), http.requests.map { it.first })
+
+        // 自定义的非 GitHub 清单地址总是直连
+        UmlessConfig.savePatch(buildJsonObject { putJsonObject("update") { put("manifest_url", "https://self.example/update.json") } })
+        http.texts["https://self.example/update.json"] = manifest()
+        http.requests.clear()
+        assertEquals("0.2.0", check(force = true).str("latest"))
+        assertEquals(listOf("https://self.example/update.json"), http.requests.map { it.first })
+    }
+
+    @Test
+    fun autoTriesLastGoodSourceFirst() {
+        http.failing.add(proxyManifest)
+        http.texts[manifestUrl] = manifest()
+        http.files[proxyApk] = payload
+        http.files[apkUrl] = payload
+        check(force = true) // 镜像失败、直连成功：记住直连
+        assertEquals(listOf(proxyManifest, manifestUrl), http.requests.map { it.first })
+        assertEquals("github", org.umless.core.DownloadSources.preferred())
+
+        // 下载安装包时先直连
+        http.requests.clear()
+        download()
+        assertEquals(listOf(manifestUrl, apkUrl), http.requests.map { it.first })
+
+        // 直连也失败后换镜像成功：下次先镜像
+        http.failing.clear()
+        http.failing.add(manifestUrl)
+        http.texts[proxyManifest] = manifest()
+        http.requests.clear()
+        check(force = true)
+        assertEquals(listOf(manifestUrl, proxyManifest), http.requests.map { it.first })
+        assertEquals("mirror", org.umless.core.DownloadSources.preferred())
+        http.requests.clear()
+        check(force = true)
+        assertEquals(listOf(proxyManifest), http.requests.map { it.first })
     }
 
     @Test

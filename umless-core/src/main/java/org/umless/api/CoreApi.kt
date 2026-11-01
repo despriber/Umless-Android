@@ -15,6 +15,7 @@ import org.umless.coach.Metrics
 import org.umless.coach.Practice
 import org.umless.core.Clock
 import org.umless.core.CoreHooks
+import org.umless.core.DownloadSources
 import org.umless.core.I18n.t
 import org.umless.core.Jobs
 import org.umless.core.Py
@@ -179,6 +180,8 @@ object CoreApi {
             settings()
         }
         reg("test_llm") { a -> testLlm(a.arg(0) as? JsonObject) }
+        // 同时测试直连 GitHub 与镜像（模型、更新共用的下载源）
+        reg("test_download_sources") { DownloadSources.test() }
         reg("list_llm_models") { a ->
             val cfg = llmCfg(buildJsonObject {
                 a.arg(0)?.let { put("base_url", it) }

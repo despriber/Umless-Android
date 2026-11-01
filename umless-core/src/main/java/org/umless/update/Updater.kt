@@ -13,6 +13,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.umless.api.ApiException
 import org.umless.api.UmlessApi
+import org.umless.core.DownloadSources
 import org.umless.core.I18n.t
 import org.umless.core.Jobs
 import org.umless.core.Py
@@ -67,7 +68,7 @@ interface UpdatePlatform {
 
 /**
  * 应用更新（Umless 主仓库 spec/update.md）：读取 GitHub Releases 上的 update.json，比较版本，
- * 下载安装包（先 gh-proxy 再直连、可续传、sha256 校验），核对包名 / 版本 / 签名后交给系统安装。
+ * 下载安装包（下载源见 DownloadSources，可续传、sha256 校验），核对包名 / 版本 / 签名后交给系统安装。
  *
  * 状态缓存在本地数据库 kv 的 "update" 里（上次检查时间、清单原文、错误、已下载的安装包），
  * 「跳过此版本」与自动检查开关在配置 update.* 里，都与网页界面共用。
@@ -77,7 +78,6 @@ object Updater {
     /** GitHub 仓库；改名时只改这里 */
     const val REPO = "despriber/Umless-Android"
     const val DEFAULT_MANIFEST_URL = "https://github.com/$REPO/releases/latest/download/update.json"
-    private const val PROXY = "https://gh-proxy.com/"
 
     /** 自动检查的间隔 */
     const val CHECK_INTERVAL_MS = 24L * 3600 * 1000
@@ -139,11 +139,14 @@ object Updater {
         val error: String? = null,
         val manifest: JsonObject? = null,
         val downloaded: Downloaded? = null,
+        /** 上次检查时所有源都对清单返回 404（还没有发布任何正式版） */
+        val notPublished: Boolean = false,
     ) {
         fun toJson(): JsonObject = buildJsonObject {
             put("checked_ms", checkedMs)
             put("checked_at", checkedAt)
             put("error", error)
+            put("not_published", notPublished)
             put("manifest", manifest ?: JsonNull)
             put("downloaded", downloaded?.let {
                 buildJsonObject {
@@ -173,6 +176,7 @@ object Updater {
                     error = str(o["error"]),
                     manifest = o["manifest"] as? JsonObject,
                     downloaded = downloaded,
+                    notPublished = (o["not_published"] as? JsonPrimitive)?.content == "true",
                 )
             }
         }
@@ -191,11 +195,9 @@ object Updater {
 
     /* ---------------------------------------------------------------- 检查 */
 
-    /** 先 gh-proxy 再直连；非 GitHub 地址（自建镜像）只请求原地址 */
-    internal fun mirrors(url: String): List<String> =
-        if (url.startsWith("https://github.com/")) listOf(PROXY + url, url) else listOf(url)
-
-    internal fun manifestUrls(): List<String> = mirrors(UmlessConfig.updateManifestUrl.ifEmpty { DEFAULT_MANIFEST_URL })
+    /** 清单的候选地址（按配置的下载源排序；自定义的非 GitHub 地址只直连） */
+    internal fun manifestUrls(): List<DownloadSources.Candidate> =
+        DownloadSources.candidates(UmlessConfig.updateManifestUrl.ifEmpty { DEFAULT_MANIFEST_URL })
 
     /**
      * check_update(force)：force 为真时总是请求清单；否则距上次检查不到 24 小时用缓存，
@@ -221,23 +223,28 @@ object Updater {
     private fun fetchManifest() {
         var manifest: UpdateManifest? = null
         var lastError: String? = null
-        for (url in manifestUrls()) {
+        var allNotFound = true // 每个源都返回 404：还没有发布过正式版，不算错误
+        for ((source, url) in manifestUrls()) {
             try {
                 manifest = UpdateManifest.parse(http.getText(url, MANIFEST_TIMEOUT_MS))
+                DownloadSources.succeeded(source)
                 break
             } catch (e: IllegalArgumentException) {
                 UmlessLog.w(TAG, "更新清单格式不正确：$url（${e.message}）")
                 lastError = t("update.bad_manifest")
+                allNotFound = false
             } catch (e: Exception) {
                 UmlessLog.w(TAG, "获取更新清单失败：$url（${e.message ?: e.javaClass.simpleName}）")
                 lastError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                if ((e as? HttpStatusException)?.status != 404) allNotFound = false
             }
         }
         val now = clock()
         updateCache { c ->
-            if (manifest != null) c.copy(checkedMs = now, checkedAt = iso(now), error = null, manifest = manifest.raw)
+            if (manifest != null) c.copy(checkedMs = now, checkedAt = iso(now), error = null, manifest = manifest.raw, notPublished = false)
+            else if (allNotFound) c.copy(checkedMs = now, checkedAt = iso(now), error = null, notPublished = true)
             // 失败时保留上次成功取到的清单，界面仍可显示已知的新版本
-            else c.copy(checkedMs = now, checkedAt = iso(now), error = t("update.check_failed", "error" to lastError))
+            else c.copy(checkedMs = now, checkedAt = iso(now), error = t("update.check_failed", "error" to lastError), notPublished = false)
         }
         if (manifest != null) UmlessLog.i(TAG, "检查更新：最新 ${manifest.version}（${manifest.baseVersionCode}），已安装 ${requirePlatform().installedVersionCode()}")
     }
@@ -275,6 +282,7 @@ object Updater {
             put("size", asset?.size)
             put("checked_at", cache.checkedAt)
             put("error", cache.error)
+            put("not_published", cache.notPublished)
             put("can_install", true)
             put("install_hint", JsonNull)
             put("downloaded", target != null && downloadedFile(p, cache, target.second) != null)
@@ -336,7 +344,7 @@ object Updater {
             }
 
             var lastError: String? = null
-            for (url in mirrors(asset.url)) {
+            for ((source, url) in DownloadSources.candidates(asset.url)) {
                 progress(fraction(part.length(), size), t("update.downloading_from", "host" to hostOf(url)))
                 try {
                     fetchTo(url, part, size, progress)
@@ -358,6 +366,7 @@ object Updater {
                     part.delete()
                     throw IOException(t("update.download_failed", "error" to "rename failed"))
                 }
+                DownloadSources.succeeded(source)
                 recordDownloaded(manifest, code, sha, name)
                 UmlessLog.i(TAG, "更新已下载：${manifest.version}（$code）")
                 progress(1f, null)

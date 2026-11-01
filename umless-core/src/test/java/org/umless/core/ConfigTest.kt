@@ -41,7 +41,7 @@ class ConfigTest {
     fun defaults() {
         val c = UmlessConfig.get()
         assertEquals(
-            listOf("app", "audio", "asr", "llm", "polish", "scenes", "coach", "privacy", "glossary", "voice", "update"),
+            listOf("app", "audio", "asr", "llm", "polish", "scenes", "coach", "privacy", "glossary", "voice", "update", "network"),
             c.keys.toList(),
         )
         assertEquals("", UmlessConfig.str("llm.base_url"))
