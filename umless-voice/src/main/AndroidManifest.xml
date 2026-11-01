@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Umless 模块的组件与权限，构建时合并进 app 的 Manifest -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 只连接用户自己配置的大模型地址和模型下载地址，见 README 的隐私说明 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- 允许明文 HTTP：设置页预置的 Ollama 是 http://localhost:11434/v1，局域网自建的大模型 / 识别服务也常是 http；
+         Android 9+ 默认禁止明文，否则这些地址一律报 CLEARTEXT not permitted。网页界面不受影响（只加载本地资源） -->
+    <application android:usesCleartextTraffic="true">
+        <!-- 语音识别放在独立进程：原生库崩溃或内存不足不会拖垮键盘，不用时整个进程可被回收 -->
+        <service
+            android:name="org.umless.voice.VoiceService"
+            android:exported="false"
+            android:process=":voice" />
+    </application>
+</manifest>

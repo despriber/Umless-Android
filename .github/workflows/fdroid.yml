@@ -20,6 +20,8 @@ defaults:
 
 jobs:
   fdroid-build:
+    # Umless 分支：上游工作流只在 fcitx5-android/fcitx5-android 运行
+    if: github.repository == 'fcitx5-android/fcitx5-android'
     runs-on: ubuntu-24.04
     container: registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie
     strategy:

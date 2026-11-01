@@ -1,0 +1,57 @@
+# Umless CI：Umless 模块的 JVM 单元测试（共享规范样例、数据库 schema 与桌面端比对等）。
+# 上游 fcitx5-android 的工作流在本仓库里不运行（见各文件里的 github.repository 判断）。
+name: Umless CI
+
+on:
+  pull_request:
+  push:
+    branches: [umless, main, master]
+  workflow_dispatch:
+    inputs:
+      umless_ref:
+        description: Umless 主仓库的分支 / 标签 / 提交（默认取仓库变量 UMLESS_REF，再默认 main）
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: umless-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: Umless-Android
+    steps:
+      - name: Checkout Umless-Android
+        uses: actions/checkout@v7
+        with:
+          path: Umless-Android
+          submodules: recursive
+
+      - name: Checkout Umless
+        uses: actions/checkout@v7
+        with:
+          repository: despriber/Umless
+          ref: ${{ inputs.umless_ref || vars.UMLESS_REF || 'main' }}
+          path: Umless
+          token: ${{ secrets.UMLESS_REPO_TOKEN || github.token }}
+
+      - name: Setup build environment
+        uses: ./Umless-Android/.github/actions/setup-umless-build
+
+      - name: Unit tests
+        run: ./gradlew :umless-core:testDebugUnitTest :umless-voice:testDebugUnitTest :umless:testDebugUnitTest -PumlessRepo=../Umless
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: Umless-Android/*/build/reports/tests/
+          retention-days: 7

@@ -16,6 +16,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager.activeTheme
 import org.fcitx.fcitx5.android.utils.WeakHashSet
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.isDarkMode
+import org.umless.glue.UmlessThemes
 
 object ThemeManager {
 
@@ -24,6 +25,9 @@ object ThemeManager {
     }
 
     val BuiltinThemes = listOf(
+        // Umless: 默认配色
+        UmlessThemes.Light,
+        UmlessThemes.Dark,
         ThemePreset.MaterialLight,
         ThemePreset.MaterialDark,
         ThemePreset.PixelLight,
@@ -35,7 +39,8 @@ object ThemeManager {
         ThemePreset.AMOLEDBlack,
     )
 
-    val DefaultTheme = ThemePreset.PixelDark
+    // Umless: 默认主题
+    val DefaultTheme = UmlessThemes.Light
 
     private var monetThemes = listOf(ThemeMonet.getLight(), ThemeMonet.getDark())
 

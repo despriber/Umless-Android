@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 与网页界面 css/tokens.css 一致：bg-layer（内容区）、bg-base（底部标签栏）、accent -->
+<resources>
+    <color name="umless_bg">#F8FAF9</color>
+    <color name="umless_bg_base">#EEF1F0</color>
+    <color name="umless_accent">#0D9488</color>
+    <color name="umless_icon_start">#2DD4BF</color>
+    <color name="umless_icon_end">#0D9488</color>
+</resources>

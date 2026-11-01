@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主 App：DayNight 让 WebView 的 prefers-color-scheme 跟随系统深浅色；窗口底色与网页一致，避免白屏闪烁 -->
+    <style name="Theme.Umless.Main" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/umless_accent</item>
+        <item name="colorAccent">@color/umless_accent</item>
+        <item name="android:windowBackground">@color/umless_bg</item>
+    </style>
+</resources>

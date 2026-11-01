@@ -40,6 +40,7 @@ import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
 import org.mechdancer.dependency.manager.managedHandler
 import org.mechdancer.dependency.manager.must
+import org.umless.glue.UmlessVoiceComponent
 
 class CommonKeyActionListener :
     UniqueComponent<CommonKeyActionListener>(), Dependent, ManagedHandler by managedHandler() {
@@ -54,6 +55,9 @@ class CommonKeyActionListener :
     private val preeditState: PreeditEmptyStateComponent by manager.must()
     private val horizontalCandidate: HorizontalCandidateComponent by manager.must()
     private val windowManager: InputWindowManager by manager.must()
+
+    // Umless: 长按空格说话
+    private val umlessVoice: UmlessVoiceComponent by manager.must()
 
     private var lastPickerType by AppPrefs.getInstance().internal.lastPickerType
 
@@ -180,6 +184,8 @@ class CommonKeyActionListener :
                             toggleIme()
                         }
                         SpaceLongPressBehavior.ShowPicker -> showInputMethodPicker()
+                        // Umless: 开始录音；松开 / 上滑取消由 BaseKeyboard 里空格键的触摸钩子处理
+                        SpaceLongPressBehavior.UmlessVoice -> umlessVoice.onSpaceLongPress()
                     }
                 }
                 else -> {}

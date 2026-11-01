@@ -66,6 +66,16 @@ class MainFragment : PaddingPreferenceFragment() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext()).apply {
+            // Umless: 回到 Umless 主 App（概览 / 报告 / 练习 / 设置）
+            addCategory("Umless") {
+                addPreference(
+                    org.umless.R.string.umless_entry_title,
+                    org.umless.R.string.umless_entry_summary,
+                    org.umless.R.drawable.umless_ic_entry_24
+                ) {
+                    startActivity(Intent(requireContext(), org.umless.ui.UmlessActivity::class.java))
+                }
+            }
             addCategory("Fcitx") {
                 addDestinationPreference(
                     R.string.global_options,

@@ -102,3 +102,12 @@ lint/tmp/
 
 ### Kotlin ###
 .kotlin/
+
+# Umless 本地构建日志
+build-*.log
+/dist/
+
+# 签名密钥（只放在仓库之外，任何情况下都不要提交）
+*.jks
+*.keystore
+signing.env

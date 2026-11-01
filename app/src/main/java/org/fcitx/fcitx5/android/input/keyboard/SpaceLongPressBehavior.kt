@@ -11,5 +11,8 @@ enum class SpaceLongPressBehavior(override val stringRes: Int) : ManagedPreferen
     None(R.string.space_behavior_none),
     Enumerate(R.string.space_behavior_enumerate),
     ToggleActivate(R.string.space_behavior_activate),
-    ShowPicker(R.string.space_behavior_picker);
+    ShowPicker(R.string.space_behavior_picker),
+
+    // Umless: 长按空格说话（默认）
+    UmlessVoice(R.string.space_behavior_umless_voice);
 }

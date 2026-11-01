@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8.0 以下没有自适应图标：圆形渐变底 + 声波前景 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:bottom="6dp"
+        android:drawable="@drawable/umless_ic_launcher_legacy_circle"
+        android:left="6dp"
+        android:right="6dp"
+        android:top="6dp" />
+    <item android:drawable="@drawable/umless_ic_launcher_foreground" />
+</layer-list>

@@ -46,6 +46,7 @@ import org.fcitx.fcitx5.android.utils.windowManager
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.wrapToUniqueComponent
 import org.mechdancer.dependency.plusAssign
+import org.umless.glue.UmlessVoiceComponent
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
@@ -110,6 +111,7 @@ class InputView(
     private val symbolPicker = symbolPicker()
     private val emojiPicker = emojiPicker()
     private val emoticonPicker = emoticonPicker()
+    private val umlessVoice = UmlessVoiceComponent()
 
     private fun setupScope() {
         scope += this@InputView.wrapToUniqueComponent()
@@ -127,6 +129,8 @@ class InputView(
         scope += windowManager
         scope += kawaiiBar
         scope += horizontalCandidate
+        // Umless: 语音输入（长按空格、语音面板、键盘顶部状态条）
+        scope += umlessVoice
         broadcaster.onScopeSetupFinished(scope)
     }
 

@@ -13,6 +13,13 @@
         <exclude
             domain="file"
             path="README.md" />
+        <!-- Umless: 识别模型（约 230MB，可重新下载）与诊断日志不备份；否则超出云备份 25MB 配额，整个应用的备份都会失败 -->
+        <exclude
+            domain="file"
+            path="umless/models" />
+        <exclude
+            domain="file"
+            path="umless/logs" />
     </cloud-backup>
     <device-transfer>
         <exclude
@@ -27,5 +34,12 @@
         <exclude
             domain="file"
             path="README.md" />
+        <!-- Umless: 识别模型（约 230MB，可重新下载）与诊断日志不备份；否则超出云备份 25MB 配额，整个应用的备份都会失败 -->
+        <exclude
+            domain="file"
+            path="umless/models" />
+        <exclude
+            domain="file"
+            path="umless/logs" />
     </device-transfer>
 </data-extraction-rules>

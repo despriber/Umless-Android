@@ -1,0 +1,262 @@
+# Umless Android 发布：推送 v* 标签（如 v0.2.0）后构建签名的正式 APK，生成 update.json 并发布 GitHub Release。
+# 流程说明见 RELEASING.md；清单格式与 versionCode 规则见 Umless 主仓库 spec/update.md。
+# 手动运行（workflow_dispatch）只构建并上传产物，不发布 Release，用于发版前试构建。
+#
+# 目录结构：$GITHUB_WORKSPACE/Umless-Android（本仓库）与 $GITHUB_WORKSPACE/Umless（主仓库：spec/、网页界面、发布脚本），
+# 与本地开发时的 ../Umless 相同。
+name: Umless release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      umless_ref:
+        description: Umless 主仓库的分支 / 标签 / 提交（默认取仓库变量 UMLESS_REF，再默认 main）
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: umless-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UMLESS_REPO: despriber/Umless
+  UMLESS_REF: ${{ inputs.umless_ref || vars.UMLESS_REF || 'main' }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.info.outputs.version }}
+      tag: ${{ steps.info.outputs.tag }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+      make_latest: ${{ steps.info.outputs.make_latest }}
+      umless_sha: ${{ steps.umless.outputs.sha }}
+    steps:
+      - name: Checkout Umless-Android
+        uses: actions/checkout@v7
+        with:
+          path: Umless-Android
+
+      - name: Checkout Umless
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.UMLESS_REPO }}
+          ref: ${{ env.UMLESS_REF }}
+          path: Umless
+          token: ${{ secrets.UMLESS_REPO_TOKEN || github.token }}
+
+      # 构建任务与发布任务用同一个主仓库提交（main 在构建期间前进也不影响）
+      - name: Pin Umless commit
+        id: umless
+        run: echo "sha=$(git -C Umless rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Check version and release notes
+        id: info
+        working-directory: Umless-Android
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release list --exclude-drafts --exclude-pre-releases --limit 200 \
+            --json tagName --jq '.[].tagName' > "$RUNNER_TEMP/release/existing-tags.txt"
+          tag_arg=()
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then tag_arg=(--tag "$GITHUB_REF_NAME"); fi
+          python3 ../Umless/tools/release/prepare_release.py "${tag_arg[@]}" \
+            --gradle-properties gradle.properties \
+            --notes-dir docs/release-notes \
+            --body-out "$RUNNER_TEMP/release/body.md" \
+            --existing-tags "$RUNNER_TEMP/release/existing-tags.txt" \
+            --manifest-hint "安装：下载与手机架构对应的 \`Umless-<版本>-arm64.apk\` 安装（绝大多数手机是 arm64）；已安装的 Umless 会在 App 里提示更新，也可以用 Obtainium 订阅本仓库。Install the \`Umless-<version>-arm64.apk\` matching your device; existing installs are notified in the app, or track this repo with Obtainium."
+
+      - name: Upload release body
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-body
+          path: ${{ runner.temp }}/release/body.md
+          retention-days: 14
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      matrix:
+        # 以后加 ABI 只需在这里加一项（platform 取值见 spec/update.md §3），发布任务会自动收集
+        include:
+          - abi: arm64-v8a
+            short: arm64
+            run_tests: true
+    defaults:
+      run:
+        working-directory: Umless-Android
+    steps:
+      - name: Checkout Umless-Android
+        uses: actions/checkout@v7
+        with:
+          path: Umless-Android
+          submodules: recursive
+
+      - name: Checkout Umless
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.UMLESS_REPO }}
+          ref: ${{ needs.prepare.outputs.umless_sha }}
+          path: Umless
+          token: ${{ secrets.UMLESS_REPO_TOKEN || github.token }}
+
+      - name: Setup build environment
+        uses: ./Umless-Android/.github/actions/setup-umless-build
+
+      - name: Unit tests
+        if: matrix.run_tests
+        run: ./gradlew :umless-core:testDebugUnitTest :umless-voice:testDebugUnitTest :umless:testDebugUnitTest -PumlessRepo=../Umless
+
+      - name: Upload test reports
+        if: failure() && matrix.run_tests
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: Umless-Android/*/build/reports/tests/
+          retention-days: 7
+
+      - name: Build release APK
+        env:
+          SIGN_KEY_BASE64: ${{ secrets.SIGN_KEY_BASE64 }}
+          SIGN_KEY_PWD: ${{ secrets.SIGN_KEY_PWD }}
+          SIGN_KEY_ALIAS: ${{ secrets.SIGN_KEY_ALIAS }}
+        run: |
+          for v in SIGN_KEY_BASE64 SIGN_KEY_PWD SIGN_KEY_ALIAS; do
+            if [ -z "${!v}" ]; then
+              echo "::error::缺少仓库机密 $v（见 RELEASING.md「一次性准备」）。不签名的安装包无法覆盖安装，也过不了 App 内更新的签名校验。"
+              exit 1
+            fi
+          done
+          ./gradlew :app:assembleRelease -PbuildABI=${{ matrix.abi }} -PumlessRepo=../Umless
+
+      - name: Collect APK
+        id: apk
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 ../Umless/tools/release/collect_apk.py \
+            --metadata app/build/outputs/apk/release/output-metadata.json \
+            --abi "${{ matrix.abi }}" --short "${{ matrix.short }}" \
+            --version "$VERSION" --out-dir "$RUNNER_TEMP/dist"
+
+      # 可选：仓库变量 UMLESS_CERT_SHA256 设为正式签名证书的 SHA-256（RELEASING.md 里有获取方法），防止用错密钥
+      - name: Verify signature
+        env:
+          EXPECTED: ${{ vars.UMLESS_CERT_SHA256 }}
+          APK: ${{ steps.apk.outputs.apk }}
+        run: |
+          certs=$("$UMLESS_BUILD_TOOLS/apksigner" verify --print-certs "$APK")
+          echo "$certs"
+          if [ -n "$EXPECTED" ]; then
+            want=$(echo "$EXPECTED" | tr -d ': ' | tr 'A-F' 'a-f')
+            if ! echo "$certs" | grep -qi "certificate SHA-256 digest: $want"; then
+              echo "::error::APK 签名证书与 UMLESS_CERT_SHA256 不一致"
+              exit 1
+            fi
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: apk-${{ matrix.abi }}
+          path: |
+            ${{ runner.temp }}/dist/*.apk
+            ${{ runner.temp }}/dist/*.asset
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Umless-Android
+        uses: actions/checkout@v7
+        with:
+          path: Umless-Android
+
+      - name: Checkout Umless
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.UMLESS_REPO }}
+          ref: ${{ needs.prepare.outputs.umless_sha }}
+          path: Umless
+          token: ${{ secrets.UMLESS_REPO_TOKEN || github.token }}
+
+      - name: Download APKs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: apk-*
+          path: dist
+          merge-multiple: true
+
+      - name: Download release body
+        uses: actions/download-artifact@v8
+        with:
+          name: release-body
+          path: body
+
+      - name: Make update.json
+        working-directory: dist
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          notes="../Umless-Android/docs/release-notes"
+          assets=()
+          for f in *.asset; do assets+=(--asset "$(tr -d '\r\n' < "$f")"); done
+          if [ ${#assets[@]} -eq 0 ]; then echo "::error::没有收集到 APK"; exit 1; fi
+          python3 ../Umless/tools/release/make_update_json.py \
+            --app umless-android \
+            --version "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "$TAG" \
+            --notes-zh "$notes/$VERSION.zh.md" \
+            --notes-en "$notes/$VERSION.en.md" \
+            "${assets[@]}" \
+            --output update.json
+          python3 ../Umless/tools/release/make_update_json.py --check update.json
+          cat update.json
+          ls -la
+
+      - name: Upload update.json
+        uses: actions/upload-artifact@v7
+        with:
+          name: update-json
+          path: dist/update.json
+          retention-days: 14
+
+      # 先建草稿、传完全部附件再公开，避免 releases/latest 指向一个还没有 update.json 的 Release。
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        working-directory: Umless-Android
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          MAKE_LATEST: ${{ needs.prepare.outputs.make_latest }}
+        run: |
+          body=../body/body.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$body"
+          else
+            gh release create "$TAG" --verify-tag --draft --title "Umless Android $VERSION" --notes-file "$body"
+          fi
+          gh release upload "$TAG" ../dist/*.apk ../dist/update.json --clobber
+          # 预发布不进 releases/latest；正式版只有不低于已发布的所有正式版时才标为 Latest
+          gh release edit "$TAG" --draft=false --prerelease="$PRERELEASE" --latest="$MAKE_LATEST"
+          gh release view "$TAG"

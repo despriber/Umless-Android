@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Umless 主 App 的组件，构建时合并进 app 的 Manifest（启动入口从上游 MainActivity 改到这里） -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 应用内更新（org.umless.update）：通过 PackageInstaller 覆盖安装自己；首次需要用户允许「安装未知应用」。
+         UPDATE_PACKAGES_WITHOUT_USER_ACTION 让本应用成为安装来源之后的更新可以不再弹确认（Android 12+，系统决定） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
+    <application>
+        <!-- 旋转、键盘等不重建（WebView 保留）；深浅色 / 语言变化会重建并恢复页面 -->
+        <activity
+            android:name="org.umless.ui.UmlessActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Umless.Main"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 更新安装结果（只接收本应用 PendingIntent 的显式广播） -->
+        <receiver
+            android:name="org.umless.update.UpdateInstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="space_behavior_umless_voice">Umless 语音</string>
+    <string name="umless_voice">Umless 语音</string>
+    <string name="umless_voice_hold_to_talk">按住说话</string>
+    <string name="umless_voice_panel_hint">按住下方按钮说话，松开后自动识别、润色并写入；上滑取消。</string>
+    <string name="umless_voice_raw">原话</string>
+    <string name="umless_voice_polished">润色后</string>
+    <string name="umless_voice_not_polished">未润色</string>
+</resources>

@@ -69,11 +69,8 @@
             android:name=".ui.main.MainActivity"
             android:exported="true"
             android:launchMode="singleTask">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            <!-- Umless: 启动入口改为 Umless 主 App（org.umless.ui.UmlessActivity，见 umless 模块的 Manifest）；
+                 这里保留系统「应用设置」入口，fcitx 的键盘设置仍可从输入法设置与 Umless 设置页进入 -->
             <intent-filter>
                 <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
             </intent-filter>

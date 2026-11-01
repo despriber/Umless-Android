@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Umless：语音输入相关文字（上游 strings.xml 保持不变，方便合并） -->
+<resources>
+    <string name="space_behavior_umless_voice">Umless voice</string>
+    <string name="umless_voice">Umless voice</string>
+    <string name="umless_voice_hold_to_talk">Hold to talk</string>
+    <string name="umless_voice_panel_hint">Hold the button below and speak. Release to transcribe, polish and insert. Slide up to cancel.</string>
+    <string name="umless_voice_raw">Original</string>
+    <string name="umless_voice_polished">Polished</string>
+    <string name="umless_voice_not_polished">Not polished</string>
+</resources>

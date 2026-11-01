@@ -70,6 +70,8 @@ import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.must
+import org.umless.glue.UmlessVoiceComponent
+import org.umless.glue.UmlessVoiceWindow
 import splitties.bitflags.hasFlag
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
@@ -261,6 +263,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         InputMethodUtil.switchInputMethod(service, id, subtype)
     }
 
+    // Umless: 麦克风按钮打开 Umless 语音面板
+    private val openUmlessVoiceCallback = View.OnClickListener {
+        windowManager.attachWindow(UmlessVoiceWindow())
+    }
+
     private val idleUi: IdleUi by lazy {
         IdleUi(context, theme, popup, commonKeyActionListener).apply {
             menuButton.setOnClickListener {
@@ -444,9 +451,15 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         voiceInputSubtype = InputMethodUtil.findVoiceSubtype(preferredVoiceInput)
         val shouldShowVoiceInput =
             showVoiceInputButton && voiceInputSubtype != null && !capFlags.has(CapabilityFlag.Password)
+        // Umless: voice.toolbar_button 开启且不是密码框时，麦克风按钮打开 Umless 语音面板（优先于跳转其他语音输入法）
+        val showUmlessVoice = UmlessVoiceComponent.toolbarButtonVisible(info, capFlags)
         idleUi.setHideKeyboardIsVoiceInput(
-            shouldShowVoiceInput,
-            if (shouldShowVoiceInput) switchToVoiceInputCallback else hideKeyboardCallback
+            showUmlessVoice || shouldShowVoiceInput,
+            when {
+                showUmlessVoice -> openUmlessVoiceCallback
+                shouldShowVoiceInput -> switchToVoiceInputCallback
+                else -> hideKeyboardCallback
+            }
         )
         evalIdleUiState()
     }

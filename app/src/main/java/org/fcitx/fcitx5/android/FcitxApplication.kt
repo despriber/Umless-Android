@@ -28,6 +28,7 @@ import org.fcitx.fcitx5.android.utils.Locales
 import org.fcitx.fcitx5.android.utils.setupForest
 import org.fcitx.fcitx5.android.utils.startActivity
 import org.fcitx.fcitx5.android.utils.userManager
+import org.umless.glue.UmlessGlue
 import timber.log.Timber
 import kotlin.system.exitProcess
 
@@ -82,6 +83,8 @@ class FcitxApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Umless: :voice 进程只运行识别服务，跳过上游的全部初始化
+        if (UmlessGlue.isVoiceProcess()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) {
             isDirectBootMode = true
             registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
@@ -149,10 +152,14 @@ class FcitxApplication : Application() {
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
+        // Umless: 初始化配置、日志、数据库（数据在凭据加密存储里，设备解锁前不可用）
+        if (!isDirectBootMode) UmlessGlue.init(this)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // Umless: :voice 进程没有初始化上游（ThemeManager 等）
+        if (UmlessGlue.isVoiceProcess()) return
         ThemeManager.onSystemPlatteChange(newConfig)
         Locales.onLocaleChange(newConfig)
     }

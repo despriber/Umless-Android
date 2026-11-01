@@ -1,0 +1,45 @@
+# Umless Android 构建环境（Ubuntu）：JDK 21、Android SDK / NDK / CMake / Build-Tools（版本取自 build-logic 的 Versions.kt）、
+# extra-cmake-modules 与 gettext（与上游 pull_request.yml / publish.yml 相同的做法）、Gradle 缓存。
+# 在仓库根目录（含 build-logic/）里调用：uses: ./Umless-Android/.github/actions/setup-umless-build
+name: Setup Umless Android build
+description: Install JDK, Android SDK packages and native build dependencies for Umless-Android
+
+inputs:
+  project-dir:
+    description: Umless-Android checkout directory (relative to the workspace)
+    default: Umless-Android
+
+runs:
+  using: composite
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y extra-cmake-modules gettext
+
+    - name: Setup Java
+      uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: "21"
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Install SDK packages from Versions.kt
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}
+      run: |
+        versions=build-logic/convention/src/main/kotlin/Versions.kt
+        get() { tr -d '\r' < "$versions" | sed -n "s/.*const val $1 = \"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p" | head -n1; }
+        cmake=$(get defaultCMake); ndk=$(get defaultNDK); tools=$(get defaultBuildTools); sdk=$(get compileSdk)
+        for v in cmake ndk tools sdk; do
+          if [ -z "${!v}" ]; then echo "::error::无法从 $versions 读取 $v"; exit 1; fi
+        done
+        echo "CMake $cmake, NDK $ndk, Build-Tools $tools, Platform android-$sdk"
+        sdkmanager --install "cmake;$cmake" "ndk;$ndk" "build-tools;$tools" "platforms;android-$sdk" > /dev/null
+        echo "UMLESS_BUILD_TOOLS=$ANDROID_HOME/build-tools/$tools" >> "$GITHUB_ENV"
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v6
