@@ -757,6 +757,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         Timber.d("onStartInputView: restarting=$restarting")
+        // Umless: 启动时没读出用户所选主题（只临时用了默认主题）就再读一次，读到后会换成用户的主题
+        ThemeManager.retryMissingTheme()
         postFcitxJob {
             focus(true)
         }

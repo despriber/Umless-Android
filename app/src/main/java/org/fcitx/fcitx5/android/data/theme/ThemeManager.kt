@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.theme
 
 import android.content.res.Configuration
 import android.os.Build
+import android.os.SystemClock
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
@@ -51,6 +52,32 @@ object ThemeManager {
 
     fun getAllThemes() = customThemes + monetThemes + BuiltinThemes
 
+    // Umless: 用户所选主题暂时找不到时重新读取自定义主题（ManagedThemePreference.getValue 调用），
+    // 频率与次数见 UmlessThemes.shouldReload；本进程里删掉的主题不再读取
+    private var reloadAttempts = 0
+    private var lastReloadAt = SystemClock.elapsedRealtime()
+    private val deletedThemeNames = mutableSetOf<String>()
+
+    fun reloadForMissingTheme(name: String): Theme? {
+        val now = SystemClock.elapsedRealtime()
+        if (!UmlessThemes.shouldReload(name, deletedThemeNames, reloadAttempts, lastReloadAt, now)) return null
+        reloadAttempts++
+        lastReloadAt = now
+        customThemes.clear()
+        customThemes.addAll(ThemeFilesManager.listThemes())
+        val found = getAllThemes().find { it.name == name }
+        UmlessThemes.onReloadForMissing(name, found != null, reloadAttempts)
+        return found
+    }
+
+    /** Umless: 键盘显示时调用：正在用的是临时默认主题（用户的主题当时没读出来）就再试一次 */
+    fun retryMissingTheme() {
+        if (!::_activeTheme.isInitialized) return
+        val name = currentThemePreference().persistedName() ?: return
+        if (_activeTheme.name == name) return
+        activeTheme = evaluateActiveTheme()
+    }
+
     fun refreshThemes() {
         customThemes.clear()
         customThemes.addAll(ThemeFilesManager.listThemes())
@@ -91,6 +118,8 @@ object ThemeManager {
 
     fun saveTheme(theme: Theme.Custom) {
         ThemeFilesManager.saveThemeFiles(theme)
+        // Umless: 见 reloadForMissingTheme
+        deletedThemeNames.remove(theme.name)
         customThemes.indexOfFirst { it.name == theme.name }.also {
             if (it >= 0) customThemes[it] = theme else customThemes.add(0, theme)
         }
@@ -103,6 +132,8 @@ object ThemeManager {
         customThemes.find { it.name == name }?.also {
             ThemeFilesManager.deleteThemeFiles(it)
             customThemes.remove(it)
+            // Umless: 见 reloadForMissingTheme
+            deletedThemeNames.add(name)
         }
         if (activeTheme.name == name) {
             activeTheme = evaluateActiveTheme()
@@ -118,13 +149,15 @@ object ThemeManager {
         prefs.normalModeTheme.setValue(theme)
     }
 
-    private fun evaluateActiveTheme(): Theme {
-        return if (prefs.followSystemDayNightTheme.getValue()) {
+    // Umless: 拆出当前生效的主题设置项（retryMissingTheme 也用）
+    fun currentThemePreference(): ManagedThemePreference =
+        if (prefs.followSystemDayNightTheme.getValue()) {
             if (isDarkMode) prefs.darkModeTheme else prefs.lightModeTheme
         } else {
             prefs.normalModeTheme
-        }.getValue()
-    }
+        }
+
+    private fun evaluateActiveTheme(): Theme = currentThemePreference().getValue()
 
     @Keep
     private val onThemePrefsChange = ManagedPreferenceProvider.OnChangeListener { key ->

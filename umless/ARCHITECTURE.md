@@ -72,7 +72,7 @@ Umless 在 fcitx5-android 之上增加语音输入与表达教练。上游代码
 4. `input/keyboard/BaseKeyboard.kt`：空格键加不拦截事件的触摸钩子（松开结束、上滑取消）
 5. `input/InputView.kt`：依赖域加入 `UmlessVoiceComponent`
 6. `input/bar/KawaiiBarComponent.kt`：工具栏麦克风按钮打开 Umless 语音面板
-7. `data/theme/ThemePreset.kt`、`ThemeManager.kt`、`ThemePrefs.kt`：Umless 主题与默认值
+7. `data/theme/ThemePreset.kt`、`ThemeManager.kt`、`ThemePrefs.kt`：Umless 主题与默认值；`ThemeManager.kt`、`ManagedThemePreference.kt`、`ThemeFilesManager.kt`、`input/FcitxInputMethodService.kt`（`onStartInputView`）：所选主题暂时读不出来时只临时用默认主题、不改写保存的选择，之后重读（规则与诊断日志在 `org.umless.glue.UmlessThemes`）；`test/.../ThemeSerializationTest.kt` 修正上游过时的断言
 8. `ui/main/MainFragment.kt`：入口；`AndroidManifest.xml`：启动入口改为 Umless 主 App
 9. `FcitxApplication.kt`：`:voice` 进程跳过上游初始化；主进程调用 `Umless.init`
 10. `res/values*/strings.xml`：应用名

@@ -23,10 +23,17 @@ class ManagedThemePreference(
     override fun getValue(): Theme =
         sharedPreferences.getString(key, null)?.let { name ->
             ThemeManager.getAllThemes().find { it.name == name }
+                // Umless: 用户选的主题暂时找不到（如更新 / 开机后自定义主题还读不出来）时重新读取一次；
+                // 仍找不到只临时用默认主题，不改写已保存的选择
+                ?: ThemeManager.reloadForMissingTheme(name)
         } ?: defaultValue
 
+    /** Umless: 已保存的主题名，从未选过时为 null */
+    fun persistedName(): String? = sharedPreferences.getString(key, null)
+
     override fun putValueTo(editor: SharedPreferences.Editor) {
-        editor.putString(key, getValue().name)
+        // Umless: 原样复制已保存的主题名，主题暂时找不到时不要写成默认主题
+        editor.putString(key, persistedName() ?: getValue().name)
     }
 
 }

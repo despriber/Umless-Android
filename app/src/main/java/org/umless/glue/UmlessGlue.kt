@@ -40,6 +40,7 @@ object UmlessGlue {
         try {
             Umless.init(app)
             ModelManager.registerHooks()
+            UmlessThemes.logStartupState()
         } catch (t: Throwable) {
             Timber.e(t, "Umless init failed")
         }

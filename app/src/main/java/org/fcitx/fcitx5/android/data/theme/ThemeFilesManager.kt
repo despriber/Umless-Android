@@ -18,7 +18,24 @@ import java.util.zip.ZipOutputStream
 
 object ThemeFilesManager {
 
-    private val dir = File(appContext.getExternalFilesDir(null), "theme").also { it.mkdirs() }
+    // Umless: 外部存储暂不可用（刚更新 / 开机）时 getExternalFilesDir 返回 null，
+    // 不要把错误的相对路径 "theme" 缓存一整个进程，拿到真实目录后才缓存
+    private var resolvedDir: File? = null
+
+    private val dir: File
+        get() = resolvedDir ?: run {
+            val ext = appContext.getExternalFilesDir(null)
+            if (ext == null) Timber.w("External files dir is unavailable, custom themes cannot be read now")
+            File(ext, "theme").also {
+                it.mkdirs()
+                if (ext != null) resolvedDir = it
+            }
+        }
+
+    // Umless: 主题目录状态（诊断日志用）
+    fun describeDir(): String = dir.let {
+        "${it.path} exists=${it.isDirectory} canRead=${it.canRead()} json=${it.listFiles(FileFilter { f -> f.extension == "json" })?.size}"
+    }
 
     private fun themeFile(theme: Theme.Custom) = File(dir, theme.name + ".json")
 
@@ -42,7 +59,12 @@ object ThemeFilesManager {
     }
 
     fun listThemes(): MutableList<Theme.Custom> {
-        val files = dir.listFiles(FileFilter { it.extension == "json" }) ?: return mutableListOf()
+        val dir = dir
+        val files = dir.listFiles(FileFilter { it.extension == "json" }) ?: run {
+            // Umless: 读不了目录时记日志（之前静默返回空列表，用户的主题就被当成不存在）
+            Timber.w("Cannot list theme dir ${dir.path}")
+            return mutableListOf()
+        }
         return files
             .sortedByDescending { it.lastModified() } // newest first
             .mapNotNull decode@{

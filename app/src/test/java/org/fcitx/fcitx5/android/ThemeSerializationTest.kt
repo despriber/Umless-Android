@@ -98,7 +98,8 @@ class ThemeSerializationTest {
             }
         """.trimIndent()
         val (decoded, migrated) = raw.toCustomTheme()
-        Assert.assertEquals("Migration shouldn't happen", false, migrated)
+        // Umless: 上游 #647 新增 2.1 版本后 2.0 也要迁移，原断言（不迁移）一直是失败的
+        Assert.assertEquals("Migration should happen", true, migrated)
         Assert.assertEquals("Round trip", decoded, decoded.toJson().toCustomTheme().first)
     }
 }
