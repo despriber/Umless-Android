@@ -13,6 +13,7 @@
   <a href="https://github.com/despriber/Umless-Android/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/despriber/Umless-Android?label=release&color=0f766e"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Android-arm64-0d9488?logo=android&logoColor=white">
   <a href="LICENSE"><img alt="License: LGPL-2.1-or-later" src="https://img.shields.io/badge/license-LGPL--2.1--or--later-4b5550"></a>
+  <a href="https://linux.do/"><img alt="LINUX DO" src="https://img.shields.io/badge/community-LINUX%20DO-2b2b2b"></a>
   <a href="https://github.com/fcitx5-android/fcitx5-android"><img alt="Based on fcitx5-android" src="https://img.shields.io/badge/based%20on-fcitx5--android-4b5550"></a>
   <a href="https://github.com/despriber/Umless"><img alt="Desktop" src="https://img.shields.io/badge/desktop-Umless%20for%20Windows-0d9488"></a>
 </p>
@@ -103,5 +104,9 @@ Development and building: [umless/ARCHITECTURE.md](umless/ARCHITECTURE.md) (need
 - The input method framework and engines come from [Fcitx5](https://github.com/fcitx/fcitx5), [libime](https://github.com/fcitx/libime), [fcitx5-chinese-addons](https://github.com/fcitx/fcitx5-chinese-addons), [fcitx5-lua](https://github.com/fcitx/fcitx5-lua) and others, each under its own license; the full list of dependencies and licenses is on the open-source licenses page in fcitx5's original settings inside the app (Settings → About → Advanced keyboard settings).
 - Speech recognition uses [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0). The model is not shipped in the APK; it is downloaded from the official sherpa-onnx releases on first use. SenseVoice-Small is under the [FunASR Model License](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE) (FunAudioLLM / Alibaba Tongyi Lab).
 - Thanks to all contributors of fcitx5-android and the Fcitx community.
+
+Umless acknowledges and takes part in the [LINUX DO](https://linux.do/) community — you're welcome to share feedback there.
+
+<p align="center">Community: <a href="https://linux.do/">LINUX DO</a></p>
 
 The original upstream fcitx5-android README is kept at the end of [README.md](README.md#上游说明fcitx5-android); its download links, signatures and community channels belong to upstream fcitx5-android, not Umless.

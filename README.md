@@ -13,6 +13,7 @@
   <a href="https://github.com/despriber/Umless-Android/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/despriber/Umless-Android?label=release&color=0f766e"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Android-arm64-0d9488?logo=android&logoColor=white">
   <a href="LICENSE"><img alt="License: LGPL-2.1-or-later" src="https://img.shields.io/badge/license-LGPL--2.1--or--later-4b5550"></a>
+  <a href="https://linux.do/"><img alt="LINUX DO" src="https://img.shields.io/badge/%E7%A4%BE%E5%8C%BA-LINUX%20DO-2b2b2b"></a>
   <a href="https://github.com/fcitx5-android/fcitx5-android"><img alt="Based on fcitx5-android" src="https://img.shields.io/badge/based%20on-fcitx5--android-4b5550"></a>
   <a href="https://github.com/despriber/Umless"><img alt="Desktop" src="https://img.shields.io/badge/%E6%A1%8C%E9%9D%A2%E7%AB%AF-Umless%20for%20Windows-0d9488"></a>
 </p>
@@ -122,6 +123,10 @@ Umless 在上面加了语音输入与表达教练。
 - 语音识别使用 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)（Apache-2.0）。识别模型不随安装包分发，首次使用时从
   sherpa-onnx 官方 Release 下载：SenseVoice-Small 遵守 [FunASR Model License](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)（FunAudioLLM / 阿里巴巴通义实验室）。
 - 感谢 fcitx5-android 与 Fcitx 社区的全部贡献者。
+
+本项目认可并积极参与 [LINUX DO](https://linux.do/) 社区，欢迎在那里交流使用体验和建议。
+
+<p align="center">交流社区：<a href="https://linux.do/">LINUX DO</a></p>
 
 ---
 
